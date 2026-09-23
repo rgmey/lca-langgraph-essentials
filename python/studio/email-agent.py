@@ -7,6 +7,9 @@ from IPython.display import Image, display
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command, interrupt
 from langgraph.graph import END, START, StateGraph
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # # Define state schemas
 class EmailClassification(TypedDict):
@@ -39,7 +42,11 @@ def read_email(state: EmailAgentState) -> EmailAgentState:
     """Extract and parse email content"""
     pass
 
-llm = ChatOpenAI(model="gpt-5-mini")
+
+from langchain_openrouter import ChatOpenRouter
+llm = ChatOpenRouter(model="openai/gpt-5-nano")   # or anthropic/claude-3.5-haiku, etc.
+
+# llm = ChatOpenAI(model="gpt-5-mini")
 
 def classify_intent(state: EmailAgentState) -> EmailAgentState:
     """Use LLM to classify email intent and urgency, then route accordingly"""
@@ -196,3 +203,21 @@ builder.add_edge("classify_intent", "bug_tracking")
 builder.add_edge("search_documentation", "write_response")
 builder.add_edge("bug_tracking", "write_response")
 builder.add_edge("send_reply", END)
+
+
+# Compile with checkpointer for persistence
+from langgraph.checkpoint.memory import InMemorySaver
+memory = InMemorySaver()
+app = builder.compile(checkpointer = memory)
+
+
+# Test with urgent billing issue
+initial_state = {
+    "email_content": "I was charged twice for my subscription! This is urgent!",
+    "sender_email": "customer@example.com",
+    "email_id": "email_123"
+}
+
+# Run with a thread_id for persistence
+config = {"configurable": {"thread_id": "customer_123"}}
+result = app.invoke(initial_state, config)
